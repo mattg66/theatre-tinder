@@ -2,8 +2,8 @@ import axios from 'axios';
 import Head from 'next/head'
 import React, { useEffect, useState } from 'react';
 import { io } from "socket.io-client";
-import TinderCard from 'react-tinder-card'
-
+import TinderStack from '../components/TinderStack';
+import NoSSR from '../components/NoSSR'
 let socket;
 
 export default function Home() {
@@ -46,15 +46,8 @@ export default function Home() {
   }
   return (
     <>
-      <input
-        placeholder="Type something"
-        value={input}
-        onChange={onChangeHandler}
-      />
-      {images?.map((image) => (
-          <TinderCard onSwipe={onSwipe} onCardLeftScreen={() => onCardLeftScreen('fooBar')} preventSwipe={['right', 'left']}><img src={'/api/image/get/' + image}/></TinderCard>
-
-      ))}
+     
+      {images !== [] ? <TinderStack images={images}/> : null}
       
     </>
   )

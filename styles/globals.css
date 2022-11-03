@@ -27,3 +27,19 @@ a {
     background: black;
   }
 }
+.card {
+  position: relative;
+  background-color: #fff;
+  width: 80vw;
+  box-shadow: 0 0 60px 0 rgba(0,0,0,.3);
+  border-radius: 20px;
+  background-size: cover;
+  background-position: 50%;
+}
+.card, .cardContainer {
+  max-width: 260px;
+  height: 300px;
+}
+.swipe {
+  position: absolute;
+}
