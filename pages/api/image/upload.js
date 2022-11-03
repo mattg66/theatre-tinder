@@ -41,7 +41,6 @@ export default function handler(req, res) {
             })
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        console.log(newFiles)
         res.end(JSON.stringify({ 'message': 'OK', 'images': newFiles }, null, 2));
     });
 

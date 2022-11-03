@@ -1,18 +1,34 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import TinderCard from 'react-tinder-card'
+import { socket } from '../utils/socket';
+
 function TinderStack(props) {
     const [currentIndex, setCurrentIndex] = useState(props.images.length - 1)
     const [lastDirection, setLastDirection] = useState()
     // used for outOfFrame closure
     const currentIndexRef = useRef(currentIndex)
-    const childRefs =
-        Array(props.images.length)
-            .fill(0)
-            .map((i) => React.createRef())
+    const propRef = useRef(props)
+    const childRefs = Array(props.images.length).fill(0).map((i) => React.createRef())
+    const childRefSquared = useRef(childRefs)
+
     useEffect(() => {
         updateCurrentIndex(props.images.length - 1)
+        propRef.current = props
     }, [props])
 
+    useEffect(() => {
+        childRefSquared.current = childRefs
+    }, [childRefs])
+    
+    useEffect(() => {
+        const eventListener = (data) => {
+            console.log(data)
+        };
+        socket.on('SWIPE', (data) => {
+            console.log(data)
+        })
+        return () => socket.off("broadcast_msg", eventListener);
+    }, [socket])
 
     const updateCurrentIndex = (val) => {
         setCurrentIndex(val)
@@ -24,6 +40,7 @@ function TinderStack(props) {
 
     // set last direction and decrease current index
     const swiped = (direction, nameToDelete, index) => {
+        socket.emit('SWIPE', direction)
         setLastDirection(direction)
         updateCurrentIndex(index - 1)
     }
@@ -37,7 +54,7 @@ function TinderStack(props) {
     }
 
     const swipe = async (dir) => {
-        console.log(dir)
+        console.log(currentIndex)
         if (canSwipe && currentIndex < props.images.length) {
             await childRefs[currentIndex].current.swipe(dir) // Swipe the card!
         }

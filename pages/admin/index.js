@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import ThumbnailCard from '../../components/ThumbnailCard';
 import axios from 'axios';
-
+import {socket} from '../../utils/socket';
 export default function MyDropzone() {
     const [files, setFiles] = useState([]);
     let tempFiles = files.slice(-1)[0]
@@ -34,9 +34,10 @@ export default function MyDropzone() {
     });
 
     function upload() {
+
         if (files.length === 0) {
             alert("No Files Uploaded")
-        } else {
+        } else if (confirm("This will replace all tinder photos currently on the system, Please confirm")) {
             let fd = new FormData()
             files.map((file) => {
                 fd.append(file.id, file);
@@ -44,7 +45,8 @@ export default function MyDropzone() {
             axios.post('/api/image/upload', fd)
                 .then(function (response) {
                     if (response.data.message === 'OK') {
-
+                        socket.emit("IMAGES-UPDATED", true)
+                        setFiles([])
                     } else {
                         alert("SPEAK TO TECHBOX")
                     }
