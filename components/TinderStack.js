@@ -4,12 +4,14 @@ import { socket } from '../utils/socket';
 
 function TinderStack(props) {
     const [currentIndex, setCurrentIndex] = useState(props.images.length - 1)
+    const [swipeRemote, setSwipeRemote] = useState(false)
     const [lastDirection, setLastDirection] = useState()
     // used for outOfFrame closure
     const currentIndexRef = useRef(currentIndex)
     const propRef = useRef(props)
     const childRefs = Array(props.images.length).fill(0).map((i) => React.createRef())
     const childRefSquared = useRef(childRefs)
+
 
     useEffect(() => {
         updateCurrentIndex(props.images.length - 1)
@@ -21,14 +23,18 @@ function TinderStack(props) {
     }, [childRefs])
     
     useEffect(() => {
-        const eventListener = (data) => {
-            console.log(data)
-        };
-        socket.on('SWIPE', (data) => {
-            console.log(data)
-        })
-        return () => socket.off("broadcast_msg", eventListener);
-    }, [socket])
+        const handler = dir => {
+            //this won't update the state
+            setSwipeRemote(true)
+            if (currentIndexRef.current >= 0 && currentIndexRef.current < propRef.current.images.length) {
+                childRefSquared.current[currentIndexRef.current].current.swipe(dir) // Swipe the card!
+            }
+        }
+        socket.on('SWIPE', handler)
+        return () => {
+            socket.off('SWIPE', handler)
+        }
+    }, [socket, swipeRemote])
 
     const updateCurrentIndex = (val) => {
         setCurrentIndex(val)
@@ -40,9 +46,12 @@ function TinderStack(props) {
 
     // set last direction and decrease current index
     const swiped = (direction, nameToDelete, index) => {
-        socket.emit('SWIPE', direction)
+        alert(swipeRemote)
+       //checking to see if this card has been swiped remotely
+        !swipeRemote ? socket.emit('SWIPE', direction) : alert("test")
         setLastDirection(direction)
         updateCurrentIndex(index - 1)
+        setSwipeRemote(false)
     }
 
     const outOfFrame = (name, idx) => {
@@ -52,9 +61,8 @@ function TinderStack(props) {
         // it happens multiple outOfFrame events are queued and the card disappear
         // during latest swipes. Only the last outOfFrame event should be considered valid
     }
-
     const swipe = async (dir) => {
-        console.log(currentIndex)
+        setSwipeRemote(false)
         if (canSwipe && currentIndex < props.images.length) {
             await childRefs[currentIndex].current.swipe(dir) // Swipe the card!
         }
