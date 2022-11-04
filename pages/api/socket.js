@@ -1,6 +1,8 @@
 import { Server } from 'socket.io'
 import fs from 'fs'
 
+let swipeCount = 1
+
 function SocketHandler(req, res) {
     let state = NumberOfPhotos();
 
@@ -15,12 +17,18 @@ function SocketHandler(req, res) {
             socket.on('GET-STATUS', msg => {
                 socket.emit('STATUS', state)
             })
+            socket.on('GET-SWIPE-COUNT', () => {
+                socket.emit('SWIPE-COUNT', swipeCount)
+            })
             socket.on('IMAGES-UPDATED', msg => {
                 let state = NumberOfPhotos();
+                swipeCount = 1;
                 socket.broadcast.emit('IMAGES-UPDATED', msg)
             })
             socket.on('SWIPE', dir => {
-                socket.broadcast.emit('SWIPE', dir)
+                console.log(dir)
+                swipeCount++
+                socket.broadcast.emit('SWIPE', {dir, swipeCount})
             })
             socket.on('input-change', msg => {
                 socket.broadcast.emit('update-input', msg)

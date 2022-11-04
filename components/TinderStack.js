@@ -1,91 +1,102 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import TinderCard from 'react-tinder-card'
+import TinderCard from './TinderCard'
 import { socket } from '../utils/socket';
 
-function TinderStack(props) {
-    const [currentIndex, setCurrentIndex] = useState(props.images.length - 1)
-    const [swipeRemote, setSwipeRemote] = useState(false)
-    const [lastDirection, setLastDirection] = useState()
-    // used for outOfFrame closure
-    const currentIndexRef = useRef(currentIndex)
-    const propRef = useRef(props)
-    const childRefs = Array(props.images.length).fill(0).map((i) => React.createRef())
-    const childRefSquared = useRef(childRefs)
+const sleep = ms => new Promise(
+    resolve => setTimeout(resolve, ms)
+  );
+  
+
+export default function TinderStack({images}) {
+    const [currentIndex, setCurrentIndex] = useState(0)
+    const [remoteSwipe, setRemoteSwipe] = useState()
+    const [localSwipe, setLocalSwipe] = useState(1)
+    const [isAnimating, setIsAnimating] = useState(false);
+
+    const childRefs = useMemo(() => Array(images.length).fill(0).map((i) => React.createRef()), [images.length])
 
 
-    useEffect(() => {
-        updateCurrentIndex(props.images.length - 1)
-        propRef.current = props
-    }, [props])
-
-    useEffect(() => {
-        childRefSquared.current = childRefs
-    }, [childRefs])
     
     useEffect(() => {
-        const handler = dir => {
-            //this won't update the state
-            setSwipeRemote(true)
-            if (currentIndexRef.current >= 0 && currentIndexRef.current < propRef.current.images.length) {
-                childRefSquared.current[currentIndexRef.current].current.swipe(dir) // Swipe the card!
+        const handle = async () => {
+            await sleep(1000)
+            const {
+                dir,
+                swipeCount
+            } = remoteSwipe || {swipeCount: undefined, dir: undefined}
+            console.log(remoteSwipe)
+            if (childRefs[currentIndex] && remoteSwipe !== undefined && localSwipe < swipeCount) {
+                await childRefs[currentIndex].current.swipe(dir || "left")
             }
         }
+
+        handle();
+
+    }, [remoteSwipe, localSwipe])
+
+    useEffect(() => {
+
+        setRemoteSwipe(undefined);
+
+        const swipeCountHandler = (swipeCount) => {
+            setRemoteSwipe({swipeCount})
+            setCurrentIndex(0);
+            setLocalSwipe(1);
+        }
+
+        socket.emit('GET-SWIPE-COUNT')
+        socket.on('SWIPE-COUNT', swipeCountHandler)
+        const handler = ({dir, swipeCount}) => {
+            setRemoteSwipe({dir, swipeCount})
+        }
+        
         socket.on('SWIPE', handler)
+
+
+
         return () => {
             socket.off('SWIPE', handler)
+            socket.off('SWIPE-COUNT', swipeCountHandler)
         }
-    }, [socket, swipeRemote])
+    }, [images])
 
-    const updateCurrentIndex = (val) => {
-        setCurrentIndex(val)
-        currentIndexRef.current = val
-    }
-
-    const canGoBack = currentIndex < props.images.length - 1
+    const canGoBack = currentIndex < images.length - 1;
     const canSwipe = currentIndex >= 0
 
+
     // set last direction and decrease current index
-    const swiped = (direction, nameToDelete, index) => {
-        alert(swipeRemote)
-       //checking to see if this card has been swiped remotely
-        !swipeRemote ? socket.emit('SWIPE', direction) : alert("test")
-        setLastDirection(direction)
-        updateCurrentIndex(index - 1)
-        setSwipeRemote(false)
+    const swiped = (dir, nameToDelete, index) => {
+        console.log({localSwipe, test: remoteSwipe.swipeCount})
+        if (localSwipe >= remoteSwipe.swipeCount) {
+            socket.emit('SWIPE', dir);
+            setRemoteSwipe({dir, swipeCount: remoteSwipe.swipeCount + 1})
+        }
+        setLocalSwipe((localSwipe) => localSwipe + 1)
+        setCurrentIndex(index => index + 1)
     }
 
-    const outOfFrame = (name, idx) => {
-        console.log(`${name} (${idx}) left the screen!`, currentIndexRef.current)
-        // handle the case in which go back is pressed before card goes outOfFrame
-        // TODO: when quickly swipe and restore multiple times the same card,
-        // it happens multiple outOfFrame events are queued and the card disappear
-        // during latest swipes. Only the last outOfFrame event should be considered valid
-    }
+    // const outOfFrame = (name, idx) => {
+    //     console.log(`${name} (${idx}) left the screen!`, currentIndexRef.current)
+    //     // handle the case in which go back is pressed before card goes outOfFrame
+    //     // TODO: when quickly swipe and restore multiple times the same card,
+    //     // it happens multiple outOfFrame events are queued and the card disappear
+    //     // during latest swipes. Only the last outOfFrame event should be considered valid
+    // }
     const swipe = async (dir) => {
-        setSwipeRemote(false)
-        if (canSwipe && currentIndex < props.images.length) {
-            await childRefs[currentIndex].current.swipe(dir) // Swipe the card!
+        if (canSwipe && currentIndex < images.length) {
+            setIsAnimating(true);
+            childRefs[currentIndex].current.swipe(dir).finally(()=> setIsAnimating(false));
         }
     }
 
     // increase current index and show card
     const goBack = async () => {
-        if (!canGoBack) return
-        const newIndex = currentIndex + 1
-        updateCurrentIndex(newIndex)
-        await childRefs[newIndex].current.restoreCard()
-    }
+        if (currentIndex <= 0) return;
 
-    const swipeToIndex = (index) => {
-        if (index > currentIndex) {
-            for (let i = currentIndex; i <= index; i++) {
-                goBack()
-            }
-        } else if (index < currentIndex) {
-            for (let i = index; i < currentIndex; i++) {
-                swipe('left')
-            }
-        }
+        const newIndex = currentIndex - 1
+        setCurrentIndex(newIndex)
+        setIsAnimating(true);
+        childRefs[newIndex].current.restoreCard().finally(() => setIsAnimating(false))
     }
 
     return (
@@ -100,13 +111,16 @@ function TinderStack(props) {
             />
             <h1>React Tinder Card</h1>
             <div className='cardContainer'>
-                {props.images.map((character, index) => (
+                {remoteSwipe !== undefined && images.map((character, i) => {
+                    const index = images.length - i - 1;
+
+                    return (
                     <TinderCard
                         ref={childRefs[index]}
                         className='swipe'
                         key={character}
                         onSwipe={(dir) => swiped(dir, character, index)}
-                        onCardLeftScreen={() => outOfFrame(character, index)}
+                        // onCardLeftScreen={() => outOfFrame(character, index)}
                     >
                         <div
                             style={{ backgroundImage: 'url(' + '/api/image/get/' + character + ')' }}
@@ -115,17 +129,16 @@ function TinderStack(props) {
                             <h3></h3>
                         </div>
                     </TinderCard>
-                ))}
+                )})}
             </div>
             <div className='buttons'>
-                <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} onClick={() => swipe('left')}>Swipe left!</button>
-                <button style={{ backgroundColor: !canGoBack && '#c3c4d3' }} onClick={() => goBack()}>Undo swipe!</button>
-                <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} onClick={() => swipe('right')}>Swipe right!</button>
-                <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} onClick={() => swipeToIndex(2)}>Swipe right!</button>
+                <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} disabled={isAnimating} onClick={() => swipe('left')}>Swipe left!</button>
+                <button style={{ backgroundColor: !canGoBack && '#c3c4d3' }} disabled={isAnimating} onClick={() => goBack()}>Undo swipe!</button>
+                <button style={{ backgroundColor: !canSwipe && '#c3c4d3' }} disabled={isAnimating} onClick={() => swipe('right')}>Swipe right!</button>
             </div>
-            {lastDirection ? (
-                <h2 key={lastDirection} className='infoText'>
-                    You swiped {lastDirection}
+            {remoteSwipe?.dir ? (
+                <h2  className='infoText'>
+                    You swiped {remoteSwipe.dir}
                 </h2>
             ) : (
                 <h2 className='infoText'>
@@ -135,5 +148,3 @@ function TinderStack(props) {
         </div>
     )
 }
-
-export default TinderStack

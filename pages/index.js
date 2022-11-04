@@ -23,7 +23,7 @@ export default function Home() {
     socket.on('STATUS', (status) => {
       axios.get('/api/image/get').then((response) => {
         if (images === []) {
-          setImages(response.data.images.slice(status))
+          setImages(response.data.images)
         } else {
           setImages(response.data.images)
         }
@@ -36,7 +36,7 @@ export default function Home() {
 
   return (
     <>
-      {images !== [] ? <TinderStack images={images} /> : null}
+      {images.length > 0 && <TinderStack images={images} />}
     </>
   )
 }
